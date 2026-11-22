@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>사진 주고받기</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#1b2330;--sub:#6b7686;--line:#e2e7ef;--ac:#3b82f6;--ac2:#2563eb;--bad:#e5484d;--ok:#16a34a}
+@media (prefers-color-scheme:dark){:root{--bg:#10141b;--card:#1a2029;--tx:#e8edf5;--sub:#8b97a8;--line:#2a3340;--ac:#4c8dff;--ac2:#6aa1ff}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-text-size-adjust:100%}
+#app{max-width:720px;margin:0 auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom))}
+h1{font-size:22px;margin:8px 0 4px}
+h2{font-size:15px;margin:0 0 12px}
+.sub{color:var(--sub);font-size:13px;line-height:1.5;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--sub);margin-bottom:10px}
+label.chk{display:flex;align-items:center;gap:8px;color:var(--tx)}
+input[type=text],input:not([type]),select{width:100%;margin-top:4px;padding:11px 12px;font-size:16px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--tx)}
+#codeIn{letter-spacing:6px;text-transform:uppercase;text-align:center;font-weight:700;font-size:20px;margin:0 0 10px}
+button,.btn{font:inherit;font-size:14px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--tx);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+button.primary{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600;width:100%;padding:13px;font-size:15px}
+button.primary:active{background:var(--ac2)}
+button.ghost{background:transparent}
+button.danger{color:var(--bad)}
+.msg{font-size:13px;color:var(--bad);min-height:18px}
+.msg.info{color:var(--sub)}
+.row{display:flex;gap:8px;align-items:center}
+.between{justify-content:space-between}
+.rhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 12px}
+.rhead b{font-size:18px}
+.chip{font-size:12px;padding:4px 9px;border-radius:99px;background:var(--card);border:1px solid var(--line);color:var(--sub)}
+.badge{font-size:11px;padding:2px 7px;border-radius:99px;background:#f59e0b22;color:#d97706;margin-left:6px}
+.invite{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.code{font-size:22px;letter-spacing:4px;margin-left:6px}
+#qr{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:8px}
+.qrcap{font-size:15px;font-weight:700}
+.tool{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px}
+.tool label.chk{margin:0;font-size:14px}
+.tool .row button{padding:9px 12px;font-size:13px}
+.tool input[type=checkbox],.sel input{width:20px;height:20px}
+.sel{position:absolute;top:4px;left:4px;margin:0;background:#fffc;border-radius:6px;padding:2px;display:flex}
+.sel input{margin:0}
+#qr[hidden]{display:none}
+#qr img,#qr canvas{background:#fff;padding:8px;border-radius:8px}
+.hint{font-size:12px;color:var(--sub);margin:10px 0 0;text-align:center}
+.pend{display:flex;justify-content:space-between;align-items:center;gap:8px;border-color:var(--ac)}
+.pend .row button{padding:8px 12px}
+#grid{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:72px 1fr;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
+.thumb{width:72px;height:72px;border-radius:10px;background:var(--bg);overflow:hidden;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.thumb img{width:100%;height:100%;object-fit:cover;display:none}
+.item.ready .thumb img{display:block}
+.item.noimg .thumb img{display:none}
+.ph{font-size:26px;opacity:.5}
+.item.ready:not(.noimg) .ph{display:none}
+.info{min-width:0}
+.nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info .sub{font-size:12px;margin:2px 0}
+.exp{font-size:12px;color:var(--sub)}
+.exp.soon{color:var(--bad)}
+.bar{height:5px;border-radius:5px;background:var(--line);margin-top:6px;overflow:hidden}
+.bar[hidden]{display:none}
+.bar i{display:block;height:100%;width:0;background:var(--ac);transition:width .15s}
+.acts{grid-column:1/-1;display:flex;gap:8px}
+.acts>*{flex:1;padding:9px 6px;font-size:13px}
+.item:not(.ready) .acts{opacity:.4;pointer-events:none}
+.sh[hidden]{display:none}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111c;color:#fff;padding:10px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center;backdrop-filter:blur(6px)}
+#toast.on{opacity:1}
+#lb{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
+#lb.on{display:flex}
+#lb img{max-width:100%;max-height:100%;border-radius:8px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+
+<section id="home">
+  <h1>📷 사진 주고받기</h1>
+  <p class="sub">갤럭시 · 아이패드 · 맥 · PC 사이에서 사진을 바로 주고받아요. 서버에 저장되지 않고, 폴더를 닫으면 사진도 모두 사라져요.</p>
+
+  <div class="card">
+    <h2>폴더 만들기</h2>
+    <label>폴더 이름
+      <input id="folderName" placeholder="예: 제주 여행" maxlength="20" autocomplete="off">
+    </label>
+    <label>사진 보관 시간
+      <select id="ttl">
+        <option value="1">1분 (테스트용)</option>
+        <option value="10">10분</option>
+        <option value="30" selected>30분</option>
+        <option value="60">1시간</option>
+        <option value="360">6시간</option>
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" id="approve" checked> 다른 기기가 들어올 때 내가 승인하기</label>
+    <button id="btnCreate" class="primary">폴더 만들기</button>
+  </div>
+
+  <div class="card">
+    <h2>코드로 입장</h2>
+    <input id="codeIn" placeholder="6자리 코드" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false">
+    <button id="btnJoin" class="primary">입장</button>
+  </div>
+
+  <label class="chk"><input type="checkbox" id="simMode"> 시뮬레이션 모드 (인터넷 없이, 같은 브라우저의 탭 두 개로 테스트)</label>
+  <p id="homeMsg" class="msg"></p>
+</section>
+
+<section id="room" hidden>
+  <div class="rhead">
+    <div><b id="rName"></b><span id="rBadge" class="badge" hidden>시뮬레이션</span></div>
+    <div class="row"><span class="chip" id="rPeers"></span><button id="btnLeave" class="ghost">나가기</button></div>
+  </div>
+
+  <div class="card invite">
+    <div>코드<b class="code" id="rCode"></b></div>
+    <div class="row"><button id="btnCopy">링크 복사</button><button id="btnQR">QR</button></div>
+    <div id="qr" hidden></div>
+  </div>
+
+  <div id="pending"></div>
+
+  <div class="card">
+    <button id="btnPick" class="primary">사진 보내기</button>
+    <input type="file" id="picker" accept="image/*" multiple hidden>
+    <p class="hint">최대 15장 · 장당 10MB · <span id="ttlLabel"></span> 뒤 자동 삭제 · 화면을 켜둔 채로 사용하세요</p>
+  </div>
+
+  <div class="row between" style="margin:14px 2px 10px">
+    <b id="count"></b>
+    <button id="btnClear" class="ghost danger">전체 삭제</button>
+  </div>
+  <div class="card tool">
+    <label class="chk"><input type="checkbox" id="selAll" disabled> 전체 선택</label>
+    <div class="row"><button id="btnDlAll" disabled>저장 (전체)</button><button id="btnShAll" hidden disabled>사진첩/공유 (전체)</button></div>
+  </div>
+  <p class="hint" id="saveHint"></p>
+  <div id="grid"></div>
+</section>
+
+</div>
+<div id="toast"></div>
+<div id="lb"><img alt=""></div>
+
+<script>
+(()=>{
+'use strict';
+const MAX_FILES=15, MAX_SIZE=10*1024*1024, CHUNK=32*1024;
+const $=s=>document.querySelector(s);
+const rid=()=>Math.random().toString(36).slice(2,10);
+const UA=navigator.userAgent;
+const IOS=/iPad|iPhone|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
+const CAN_SHARE_FILES=(()=>{try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([new Uint8Array(1)],'a.jpg',{type:'image/jpeg'})]}));}catch(e){return false;}})();
+const CAN_DIR=typeof window.showDirectoryPicker==='function';
+
+function devName(){
+  const u=navigator.userAgent;let b='기기';
+  if(/SM-|SAMSUNG/i.test(u))b='갤럭시';
+  else if(/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))b='아이패드';
+  else if(/iPhone/.test(u))b='아이폰';
+  else if(/Android/.test(u))b='안드로이드';
+  else if(/Mac/.test(u))b='맥';
+  else if(/Windows/.test(u))b='PC';
+  return b+'-'+(10+Math.floor(Math.random()*90));
+}
+const S={mode:'real',role:null,peer:null,conns:[],hostConn:null,code:'',folder:'',ttl:30*60000,approve:true,
+  files:[],incoming:new Map(),els:new Map(),pending:[],name:devName(),leaving:false,wake:null};
+
+/* ---------- 시뮬레이션용 가짜 Peer (BroadcastChannel) ---------- */
+class SimConn{
+  constructor(peer,remote,cid){this.peer=peer;this.remote=remote;this.cid=cid;this.h={};this.open=false;this.dataChannel=null;}
+  on(ev,fn){(this.h[ev]=this.h[ev]||[]).push(fn);return this;}
+  emit(ev,a){(this.h[ev]||[]).slice().forEach(f=>f(a));}
+  send(data){this.peer.ch.postMessage({k:'data',to:this.remote,cid:this.cid,data});}
+  close(){this.peer.ch.postMessage({k:'close',to:this.remote,cid:this.cid});delete this.peer.conns[this.cid];this.emit('close');}
+}
+class SimPeer{
+  constructor(id){
+    this.id=id||('sim-'+rid());this.h={};this.conns={};this.ch=new BroadcastChannel('pf-sim');
+    this.ch.onmessage=e=>{
+      const m=e.data;if(!m||m.to!==this.id)return;
+      if(m.k==='conn'){
+        const c=new SimConn(this,m.from,m.cid);c.open=true;this.conns[m.cid]=c;
+        this.emit('connection',c);
+        this.ch.postMessage({k:'ack',to:m.from,cid:m.cid});
+      }else if(m.k==='ack'){
+        const c=this.conns[m.cid];if(c){c.open=true;c.emit('open');}
+      }else if(m.k==='data'){
+        const c=this.conns[m.cid];if(c)c.emit('data',m.data);
+      }else if(m.k==='close'){
+        const c=this.conns[m.cid];if(c){delete this.conns[m.cid];c.emit('close');}
+      }
+    };
+    setTimeout(()=>this.emit('open',this.id),30);
+  }
+  on(ev,fn){(this.h[ev]=this.h[ev]||[]).push(fn);return this;}
+  emit(ev,a){(this.h[ev]||[]).slice().forEach(f=>f(a));}
+  connect(target){
+    const cid=rid(),c=new SimConn(this,target,cid);this.conns[cid]=c;
+    this.ch.postMessage({k:'conn',to:target,from:this.id,cid});
+    setTimeout(()=>{if(!c.open)this.emit('error',{type:'peer-unavailable'});},900);
+    return c;
+  }
+  destroy(){Object.values(this.conns).forEach(c=>{try{c.close()}catch(e){}});try{this.ch.close()}catch(e){}}
+}
+function mkPeer(id){
+  if(S.mode==='sim')return new SimPeer(id);
+  if(typeof Peer==='undefined')throw new Error('연결 도구(PeerJS)를 불러오지 못했어요. 인터넷 연결을 확인해 주세요');
+  return new Peer(id,{debug:0});
+}
+
+/* ---------- UI 도우미 ---------- */
+let toastT;
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('on'),2600);}
+function fmt(b){return b>=1048576?(b/1048576).toFixed(1)+'MB':Math.max(1,Math.round(b/1024))+'KB';}
+function mmss(ms){const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function ttlText(ms){const m=ms/60000;return m<1?'몇 초':(m>=60?(m/60)+'시간':m+'분');}
+function showHome(){$('#room').hidden=true;$('#home').hidden=false;}
+function showRoom(){$('#home').hidden=true;$('#room').hidden=false;}
+function homeMsg(t,info){const e=$('#homeMsg');e.textContent=t||'';e.className='msg'+(info?' info':'');}
+function busy(b){$('#btnCreate').disabled=b;$('#btnJoin').disabled=b;}
+function fail(msg){cleanup();showHome();busy(false);homeMsg(msg);}
+function link(){return location.href.split('#')[0]+'#'+S.code+(S.mode==='sim'?'.sim':'');}
+
+async function requestWake(){try{if('wakeLock' in navigator)S.wake=await navigator.wakeLock.request('screen');}catch(e){}}
+function releaseWake(){try{S.wake&&S.wake.release();}catch(e){}S.wake=null;}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.peer&&!S.wake)requestWake();});
+
+/* ---------- 파일 카드 ---------- */
+function updCount(){$('#count').textContent='폴더 안 사진 '+S.files.length+'/'+MAX_FILES+'장';updToolbar();}
+function pickList(){const r=S.files.filter(f=>f.blob&&f.url);const s=r.filter(f=>f.sel);return s.length?s:r;}
+function updToolbar(){
+  const r=S.files.filter(f=>f.blob&&f.url),s=r.filter(f=>f.sel);
+  $('#selAll').checked=r.length>0&&s.length===r.length;
+  $('#selAll').disabled=!r.length;
+  const n=s.length?s.length+'장':'전체';
+  $('#btnDlAll').textContent='저장 ('+n+')';
+  $('#btnShAll').textContent='사진첩/공유 ('+n+')';
+  $('#btnDlAll').disabled=$('#btnShAll').disabled=!r.length;
+}
+function safeName(n){return String(n||'photo').replace(/[\\\/:*?"<>|]/g,'_');}
+const EXT_TYPE={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',heic:'image/heic',heif:'image/heif'};
+const TYPE_EXT={'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp','image/heic':'heic','image/heif':'heif'};
+function toFile(f){
+  let name=safeName(f.name),type=f.type||'';
+  const m=name.match(/\.([A-Za-z0-9]+)$/),ext=m?m[1].toLowerCase():'';
+  if(!/^image\//.test(type)||type==='image/jpg')type=EXT_TYPE[ext]||'image/jpeg';
+  if(!EXT_TYPE[ext])name=name.replace(/\.[A-Za-z0-9]+$/,'')+'.'+(TYPE_EXT[type]||'jpg');
+  return new File([f.blob],name,{type});
+}
+/* 1) 아이폰/아이패드: 공유창 1번 -> "이미지 저장" 한 번으로 사진 앱에 전부 저장 */
+async function saveViaShare(list){
+  try{await navigator.share({files:list.map(toFile)});return true;}
+  catch(e){if(e&&e.name==='AbortError')return true;return false;}
+}
+/* 2) PC(크롬/엣지): 폴더를 한 번만 고르면 전부 그 폴더에 저장 (팝업 1번) */
+async function uniqueName(dir,name){
+  const dot=name.lastIndexOf('.'),base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';
+  let n=name,i=1;
+  for(;;){
+    try{await dir.getFileHandle(n);}catch(e){return n;}
+    i++;n=base+' ('+i+')'+ext;
+  }
+}
+async function saveViaFolder(list){
+  let dir;
+  try{dir=await window.showDirectoryPicker({id:'photo-share',mode:'readwrite',startIn:'pictures'});}
+  catch(e){
+    if(e&&e.name==='AbortError')return true;
+    if(e&&e.name==='SecurityError'){toast('이 폴더는 브라우저가 막아둬서 쓸 수 없어요. 새 폴더를 만들어서 골라 주세요');return true;}
+    return false;
+  }
+  let done=0;
+  try{
+    for(const f of list){
+      if(!f.blob||!S.files.includes(f))continue;
+      const name=await uniqueName(dir,safeName(f.name));
+      const fh=await dir.getFileHandle(name,{create:true});
+      const w=await fh.createWritable();await w.write(f.blob);await w.close();
+      done++;toast('저장 중 '+done+'/'+list.length);
+    }
+  }catch(e){toast('저장 중 오류가 났어요: '+(e&&e.name||''));return true;}
+  toast(done+'장을 폴더에 저장했어요 (압축 없이 사진 그대로)');
+  return true;
+}
+/* 3) 그 외(갤럭시 등): 일반 다운로드. 브라우저가 "여러 파일 허용?"을 한 번 물으면 허용 */
+async function dlMany(list){
+  let done=0;
+  for(let i=0;i<list.length;i++){
+    const f=list[i];
+    if(!f.url||!S.files.includes(f))continue;
+    const a=document.createElement('a');a.href=f.url;a.download=f.name;a.style.display='none';
+    document.body.appendChild(a);a.click();a.remove();done++;
+    toast('저장 중 '+(i+1)+'/'+list.length);
+    await new Promise(r=>setTimeout(r,400));
+  }
+  toast(done+'장 저장을 요청했어요 (압축 없이 사진 그대로)');
+}
+/* 저장 버튼: 사용자 터치 직후 바로 호출해야 해서, 첫 await 전에 공유/폴더 선택창을 엽니다 */
+async function saveMany(list){
+  list=list.filter(f=>f.blob&&f.url&&S.files.includes(f));
+  if(!list.length)return;
+  let ok=false;
+  if(IOS&&!CAN_SHARE_FILES){toast('이 주소에서는 사진 앱 저장이 막혀요. 사진을 눌러 크게 연 뒤 길게 눌러 "사진에 추가"를 선택하세요');return;}
+  if(IOS&&CAN_SHARE_FILES)ok=await saveViaShare(list);
+  else if(CAN_DIR)ok=await saveViaFolder(list);
+  if(!ok)await dlMany(list);
+}
+async function shareMany(list){
+  try{
+    const files=list.map(f=>new File([f.blob],f.name,{type:f.type}));
+    if(navigator.canShare&&navigator.canShare({files}))await navigator.share({files});
+    else toast('이 기기는 여러 장 한꺼번에 공유를 지원하지 않아요');
+  }catch(e){}
+}
+function mkEl(it){
+  if(S.els.has(it.id))return;
+  const el=document.createElement('div');el.className='item';
+  el.innerHTML='<div class="thumb"><img alt=""><span class="ph">🖼</span><label class="sel"><input type="checkbox" disabled></label></div>'+
+    '<div class="info"><div class="nm"></div><div class="sub"></div><div class="exp"></div><div class="bar"><i></i></div></div>'+
+    '<div class="acts"><a class="btn dl">저장</a><button class="sh" hidden>사진첩/공유</button><button class="rm danger">삭제</button></div>';
+  el.querySelector('.nm').textContent=it.name;
+  el.querySelector('.sub').textContent=fmt(it.size)+' · '+it.from;
+  el.querySelector('img').onerror=()=>el.classList.add('noimg');
+  el.querySelector('.rm').onclick=()=>removeFile(it.id,true);
+  el.querySelector('.thumb').onclick=e=>{if(e.target.closest('.sel'))return;if(it.url&&!el.classList.contains('noimg')){$('#lb img').src=it.url;$('#lb').classList.add('on');if(IOS)toast('길게 누르면 "사진에 추가"를 할 수 있어요');}};
+  el.querySelector('.sel input').onchange=e=>{it.sel=e.target.checked;updToolbar();};
+  const sh=el.querySelector('.sh');
+  el.querySelector('.dl').addEventListener('click',e=>{
+    if(!IOS||!it.blob)return;
+    e.preventDefault();
+    if(CAN_SHARE_FILES)saveViaShare([it]);
+    else{$('#lb img').src=it.url;$('#lb').classList.add('on');toast('사진을 길게 눌러서 "사진에 추가"를 선택하세요');}
+  });
+  if(CAN_SHARE_FILES&&!IOS)sh.hidden=false;
+  sh.onclick=async()=>{
+    try{const f=new File([it.blob],it.name,{type:it.type});
+      if(navigator.canShare({files:[f]}))await navigator.share({files:[f]});else toast('이 기기는 공유를 지원하지 않아요');
+    }catch(e){}
+  };
+  $('#grid').prepend(el);S.els.set(it.id,el);updEl(it);updCount();
+}
+function updEl(it){
+  const el=S.els.get(it.id);if(!el)return;
+  const bar=el.querySelector('.bar');bar.hidden=it.prog>=1;bar.firstChild.style.width=Math.round(it.prog*100)+'%';
+  if(it.url&&!el._u){
+    el._u=1;el.querySelector('img').src=it.url;
+    const a=el.querySelector('.dl');a.href=it.url;a.download=it.name;
+    el.classList.add('ready');
+    el.querySelector('.sel input').disabled=false;updToolbar();
+  }
+  const left=it.at+it.ttl-Date.now(),ex=el.querySelector('.exp');
+  ex.textContent='⏱ '+mmss(left)+' 뒤 삭제';ex.classList.toggle('soon',left<60000);
+}
+function removeFile(id,bc){
+  const i=S.files.findIndex(f=>f.id===id);if(i<0)return;
+  const it=S.files[i];S.files.splice(i,1);
+  if(it.url)URL.revokeObjectURL(it.url);
+  const el=S.els.get(id);if(el){el.remove();S.els.delete(id);}
+  S.incoming.delete(id);updCount();
+  if(bc)targets().forEach(c=>{try{c.send({t:'del',id});}catch(e){}});
+}
+function targets(){return S.role==='host'?S.conns:(S.hostConn?[S.hostConn]:[]);}
+setInterval(()=>{
+  const now=Date.now();
+  S.files.slice().forEach(it=>{if(now>=it.at+it.ttl)removeFile(it.id,false);else updEl(it);});
+},1000);
+
+/* ---------- 전송 ---------- */
+function drain(conn){
+  const dc=conn.dataChannel;if(!dc)return Promise.resolve();
+  return new Promise(res=>{const chk=()=>dc.bufferedAmount<1048576?res():setTimeout(chk,30);chk();});
+}
+async function sendFile(conn,it,onProg){
+  conn.send({t:'meta',id:it.id,name:it.name,size:it.size,type:it.type,from:it.from,ttl:Math.max(1000,it.at+it.ttl-Date.now())});
+  const buf=await it.blob.arrayBuffer();
+  for(let off=0,i=0;off<buf.byteLength;off+=CHUNK,i++){
+    await drain(conn);
+    conn.send({t:'chunk',id:it.id,i,data:buf.slice(off,off+CHUNK)});
+    if(onProg)onProg(Math.min(off+CHUNK,buf.byteLength)/buf.byteLength);
+  }
+  conn.send({t:'end',id:it.id});
+}
+async function sendFiles(list){
+  const ts=targets();
+  let arr=[...list].filter(f=>{
+    if(!/^image\//.test(f.type)&&!/\.(heic|heif|jpe?g|png|gif|webp)$/i.test(f.name)){toast(f.name+': 사진 파일이 아니에요');return false;}
+    if(f.size>MAX_SIZE){toast(f.name+': 10MB가 넘어서 제외했어요');return false;}
+    return true;
+  });
+  const room=MAX_FILES-S.files.length;
+  if(arr.length>room){toast('폴더에는 '+MAX_FILES+'장까지만 담겨요. '+Math.max(room,0)+'장만 보낼게요');arr=arr.slice(0,Math.max(room,0));}
+  if(!arr.length)return;
+  if(!ts.length)toast('아직 연결된 기기가 없어요. 기기가 들어오면 자동으로 전달돼요');
+  for(const f of arr){
+    const it={id:rid(),name:f.name,size:f.size,type:f.type||'image/jpeg',from:S.name,ttl:S.ttl,at:Date.now(),blob:f,url:URL.createObjectURL(f),prog:0};
+    S.files.push(it);mkEl(it);
+    if(!ts.length){it.prog=1;updEl(it);continue;}
+    const pr=new Array(ts.length).fill(0);
+    try{
+      await Promise.all(ts.map((c,i)=>sendFile(c,it,p=>{pr[i]=p;it.prog=Math.min(...pr);updEl(it);})));
+    }catch(e){toast('전송 중 오류가 났어요');}
+    it.prog=1;updEl(it);
+  }
+}
+function relay(it,except){S.conns.filter(c=>c!==except).forEach(c=>{try{sendFile(c,it);}catch(e){}});}
+
+function onData(conn,d){
+  if(!d||!d.t)return;
+  switch(d.t){
+    case 'meta':{
+      if(S.files.some(f=>f.id===d.id))return;
+      if(S.files.length>=MAX_FILES||d.size>MAX_SIZE){
+        conn.send({t:'reject',id:d.id,why:S.files.length>=MAX_FILES?'폴더가 가득 찼어요 (15장)':'10MB를 넘는 사진이에요'});
+        S.incoming.set(d.id,{skip:true});return;
+      }
+      const it={id:d.id,name:String(d.name||'photo'),size:d.size|0,type:String(d.type||'image/jpeg'),from:String(d.from||'기기'),ttl:d.ttl|0,at:Date.now(),blob:null,url:null,prog:0};
+      S.files.push(it);S.incoming.set(d.id,{it,chunks:[],got:0,conn});mkEl(it);break;
+    }
+    case 'chunk':{
+      const r=S.incoming.get(d.id);if(!r||r.skip)return;
+      r.chunks.push(d.data);r.got+=d.data.byteLength;r.it.prog=Math.min(0.99,r.got/Math.max(1,r.it.size));updEl(r.it);break;
+    }
+    case 'end':{
+      const r=S.incoming.get(d.id);S.incoming.delete(d.id);if(!r||r.skip)return;
+      const it=r.it;it.blob=new Blob(r.chunks,{type:it.type});it.url=URL.createObjectURL(it.blob);it.prog=1;updEl(it);
+      toast(it.from+'에서 사진을 받았어요');
+      if(S.role==='host')relay(it,conn);
+      break;
+    }
+    case 'del':
+      removeFile(d.id,false);
+      if(S.role==='host')S.conns.filter(c=>c!==conn).forEach(c=>{try{c.send({t:'del',id:d.id});}catch(e){}});
+      break;
+    case 'reject':removeFile(d.id,false);toast(d.why||'전송이 거절됐어요');break;
+  }
+}
+
+/* ---------- 호스트 ---------- */
+function genCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
+function readOpts(){
+  S.mode=$('#simMode').checked?'sim':'real';
+  S.ttl=(+$('#ttl').value)*60000;S.approve=$('#approve').checked;
+  S.folder=$('#folderName').value.trim()||'새 폴더';
+}
+function createRoom(){
+  readOpts();S.leaving=false;S.role='host';busy(true);homeMsg('폴더를 만드는 중…',true);
+  tryCreate(0);
+}
+function tryCreate(n){
+  const code=genCode();let p;
+  try{p=mkPeer('pfolder-'+code);}catch(e){return fail(e.message);}
+  p.on('open',()=>{S.peer=p;S.code=code;setupHost(p);enterRoom();});
+  p.on('error',e=>{
+    if(e.type==='unavailable-id'&&n<5){try{p.destroy();}catch(x){}tryCreate(n+1);}
+    else if(!S.code)fail('폴더를 만들지 못했어요 ('+(e.type||'오류')+')');
+    else toast('연결 오류: '+(e.type||''));
+  });
+  p.on('disconnected',()=>{try{p.reconnect();}catch(e){}});
+}
+function setupHost(p){
+  p.on('connection',conn=>{
+    conn.on('data',d=>{
+      if(!d)return;
+      if(d.t==='hello'){
+        conn.devName=String(d.name||'새 기기');
+        if(S.approve){S.pending.push(conn);renderPending();}else admit(conn);
+        return;
+      }
+      if(conn.ok)onData(conn,d);
+    });
+    conn.on('close',()=>dropConn(conn));
+    conn.on('error',()=>dropConn(conn));
+  });
+}
+function admit(conn){
+  conn.ok=true;S.conns.push(conn);
+  conn.send({t:'welcome',folder:S.folder,ttl:S.ttl});
+  broadcastPeers();
+  const now=Date.now();
+  S.files.filter(f=>f.blob&&now<f.at+f.ttl).forEach(f=>sendFile(conn,f));
+  toast(conn.devName+' 기기가 들어왔어요');
+}
+function dropConn(conn){
+  const wasOk=S.conns.includes(conn);
+  S.conns=S.conns.filter(c=>c!==conn);
+  S.pending=S.pending.filter(c=>c!==conn);renderPending();
+  for(const [id,r] of [...S.incoming]){if(!r.skip&&r.conn===conn)removeFile(id,false);}
+  if(wasOk){broadcastPeers();toast(conn.devName+' 기기가 나갔어요');}
+}
+function broadcastPeers(){
+  const n=S.conns.length+1;setPeers(n);
+  S.conns.forEach(c=>{try{c.send({t:'peers',n});}catch(e){}});
+}
+function setPeers(n){$('#rPeers').textContent='연결 '+n+'대';}
+function renderPending(){
+  const box=$('#pending');box.innerHTML='';
+  S.pending.forEach(c=>{
+    const d=document.createElement('div');d.className='card pend';
+    const t=document.createElement('span');t.textContent=(c.devName||'새 기기')+' 입장 요청';
+    const r=document.createElement('div');r.className='row';
+    const ok=document.createElement('button');ok.textContent='허용';ok.className='ok';
+    const no=document.createElement('button');no.textContent='거절';no.className='no danger';
+    ok.onclick=()=>{S.pending=S.pending.filter(x=>x!==c);renderPending();admit(c);};
+    no.onclick=()=>{S.pending=S.pending.filter(x=>x!==c);renderPending();try{c.send({t:'denied'});}catch(e){}setTimeout(()=>{try{c.close();}catch(e){}},300);};
+    r.append(ok,no);d.append(t,r);box.append(d);
+  });
+}
+
+/* ---------- 게스트 ---------- */
+function joinRoom(){
+  const code=$('#codeIn').value.trim().toUpperCase();
+  if(code.length!==6){homeMsg('6자리 코드를 입력해 주세요');return;}
+  S.mode=$('#simMode').checked?'sim':'real';S.leaving=false;S.role='guest';S.code=code;
+  busy(true);homeMsg('연결하는 중…',true);
+  let p;try{p=mkPeer(undefined);}catch(e){return fail(e.message);}
+  S.peer=p;
+  p.on('open',()=>{
+    const conn=p.connect('pfolder-'+code,{reliable:true});S.hostConn=conn;
+    const to=setTimeout(()=>{if(!conn.open)fail('연결이 안 돼요. 코드를 확인하거나 네트워크 상태를 확인해 주세요');},20000);
+    conn.on('open',()=>{clearTimeout(to);homeMsg('호스트의 승인을 기다리는 중…',true);conn.send({t:'hello',name:S.name});});
+    conn.on('data',d=>{
+      if(!d)return;
+      if(d.t==='welcome'){S.folder=d.folder;S.ttl=d.ttl;enterRoom();}
+      else if(d.t==='peers')setPeers(d.n);
+      else if(d.t==='denied')fail('입장이 거절됐어요');
+      else onData(conn,d);
+    });
+    conn.on('close',()=>{if(S.leaving)return;const inRoom=!$('#room').hidden;fail(inRoom?'폴더가 닫혔어요':'연결이 끊어졌어요');});
+  });
+  p.on('error',e=>{
+    if(S.leaving)return;
+    if(e.type==='peer-unavailable')fail('폴더를 찾지 못했어요. 코드를 확인해 주세요');
+    else fail('연결 오류 ('+(e.type||'알 수 없음')+')');
+  });
+}
+
+/* ---------- 방 화면 ---------- */
+function enterRoom(){
+  busy(false);homeMsg('');showRoom();
+  $('#rName').textContent=S.folder;$('#rCode').textContent=S.code;
+  $('#rBadge').hidden=S.mode!=='sim';
+  $('#ttlLabel').textContent=ttlText(S.ttl);
+  setPeers(S.role==='host'?1:2);updCount();requestWake();
+}
+function cleanup(){
+  S.leaving=true;
+  S.files.forEach(f=>{if(f.url)URL.revokeObjectURL(f.url);});
+  S.files=[];S.els.clear();$('#grid').innerHTML='';S.incoming.clear();S.pending=[];renderPending();
+  try{S.peer&&S.peer.destroy();}catch(e){}
+  S.peer=null;S.conns=[];S.hostConn=null;S.code='';releaseWake();
+  $('#qr').hidden=true;$('#qr').innerHTML='';
+}
+
+/* ---------- 이벤트 ---------- */
+$('#btnCreate').onclick=createRoom;
+$('#btnJoin').onclick=joinRoom;
+$('#codeIn').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom();});
+$('#btnLeave').onclick=()=>{if(!S.files.length||confirm('나가면 이 폴더의 사진이 이 기기에서 모두 지워져요. 나갈까요?')){cleanup();showHome();}};
+$('#btnPick').onclick=()=>$('#picker').click();
+$('#picker').onchange=e=>{const l=[...e.target.files];e.target.value='';if(l.length)sendFiles(l);};
+$('#selAll').onchange=e=>{
+  S.files.filter(f=>f.blob&&f.url).forEach(f=>{f.sel=e.target.checked;const el=S.els.get(f.id);if(el)el.querySelector('.sel input').checked=e.target.checked;});
+  updToolbar();
+};
+$('#btnDlAll').onclick=()=>saveMany(pickList());
+if(CAN_SHARE_FILES&&!IOS)$('#btnShAll').hidden=false;
+$('#saveHint').textContent=IOS&&CAN_SHARE_FILES?'저장을 누르면 공유창이 열려요. 아래로 내려서 "이미지 저장"을 누르세요 ("파일에 저장"은 사진 앱에 안 보여요).':IOS?'이 페이지는 https 주소로 열어야 사진 앱에 저장돼요. 지금은 사진을 눌러 크게 연 뒤 길게 눌러 "사진에 추가"를 선택하세요.':CAN_DIR?'저장을 누르고 폴더를 한 번만 고르면 사진이 전부 그 폴더에 저장돼요. 다운로드·바탕화면 같은 기본 폴더는 막힐 수 있으니 새 폴더를 만들어 고르세요.':'여러 장을 저장할 때 브라우저가 "여러 파일 다운로드를 허용할까요?"라고 한 번 물을 수 있어요. 허용하면 나머지는 자동으로 저장돼요.';
+$('#btnShAll').onclick=()=>shareMany(pickList());
+$('#btnClear').onclick=()=>{if(S.files.length&&confirm('폴더 안 사진을 모두 삭제할까요? (연결된 기기에서도 지워져요)'))S.files.slice().forEach(f=>removeFile(f.id,true));};
+$('#btnCopy').onclick=async()=>{try{await navigator.clipboard.writeText(link());toast('링크를 복사했어요');}catch(e){prompt('이 링크를 복사하세요',link());}};
+$('#btnQR').onclick=()=>{
+  const q=$('#qr');
+  if(!q.hidden){q.hidden=true;return;}
+  q.innerHTML='';q.hidden=false;
+  if(typeof QRCode==='undefined'){q.textContent='QR 도구를 불러오지 못했어요';return;}
+  new QRCode(q,{text:link(),width:180,height:180});
+  const cap=document.createElement('div');cap.className='qrcap';cap.textContent='공유파일다운';q.appendChild(cap);
+};
+$('#lb').onclick=()=>$('#lb').classList.remove('on');
+window.addEventListener('beforeunload',e=>{if(S.peer&&S.files.length){e.preventDefault();e.returnValue='';}});
+
+const m=location.hash.match(/^#([A-Za-z0-9]{6})(\.sim)?$/);
+if(m){$('#codeIn').value=m[1].toUpperCase();if(m[2])$('#simMode').checked=true;joinRoom();}
+window.__S=S;
+})();
+</script>
+</body>
+</html>
